@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>P2P Multi-Stream (Optimized)</title>
+    <title>P2P Multi-Stream (Universal)</title>
     <style>
         :root { --primary: #00ff41; --bg: #0a0a0a; --panel: #1a1a1a; --text: #00ff41; }
         body { font-family: 'Courier New', monospace; background: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; box-sizing: border-box; }
         .container { width: 100%; max-width: 600px; border: 1px solid var(--primary); padding: 20px; border-radius: 8px; box-shadow: 0 0 20px rgba(0,255,65,0.2); }
         video { width: 100%; aspect-ratio: 16/9; background: #000; border: 1px solid #333; margin: 10px 0; border-radius: 4px; }
-        textarea { width: 100%; height: 60px; background: #000; color: var(--primary); border: 1px solid var(--primary); padding: 8px; box-sizing: border-box; font-size: 10px; margin: 5px 0; border-style: dashed; }
+        textarea { width: 100%; height: 60px; background: #000; color: var(--primary); border: 1px solid var(--primary); padding: 8px; box-sizing: border-box; font-size: 10px; margin: 5px 0; border-style: dashed; outline: none; }
         .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        button { background: transparent; color: var(--primary); border: 1px solid var(--primary); padding: 12px; font-weight: bold; cursor: pointer; }
-        button:hover { background: var(--primary); color: #000; }
+        button { background: transparent; color: var(--primary); border: 1px solid var(--primary); padding: 12px; font-weight: bold; cursor: pointer; border-radius: 4px; }
+        button:active { background: var(--primary); color: #000; }
         .step { margin: 15px 0; padding: 10px; background: var(--panel); border-radius: 4px; border: 1px solid #333; }
         .label { font-size: 0.75rem; font-weight: bold; margin-bottom: 5px; display: block; }
         #status { color: #fff; font-size: 0.85rem; text-align: center; margin: 10px 0; min-height: 1.2em; }
@@ -23,7 +23,7 @@
 
 <div class="container">
     <div id="status">P2Pシステム待機中</div>
-    <video id="v" autoplay playsinline controls></video>
+    <video id="v" autoplay playsinline muted controls></video>
 
     <div id="setupArea" class="controls">
         <button onclick="initHost()">配信開始 (PC)</button>
@@ -31,17 +31,17 @@
     </div>
 
     <div id="commArea" class="hidden">
-        <div class="step">
-            <span class="label">1. あなたの短縮コード:</span>
-            <textarea id="localSdp" readonly></textarea>
-            <button style="width:100%; font-size: 12px;" onclick="copyCode()">コピーして相手に送る</button>
-        </div>
-        <div class="step">
-            <span class="label">2. 相手からのコードを貼り付け:</span>
+        <div id="stepRemote" class="step">
+            <span class="label">1. 相手からのコードを貼り付け:</span>
             <textarea id="remoteSdp" placeholder="ここにペースト"></textarea>
-            <button style="width:100%; background: var(--primary); color: #000;" onclick="connect()">接続実行</button>
+            <button id="connectBtn" style="width:100%; background: var(--primary); color: #000;" onclick="connect()">接続実行</button>
         </div>
-        <p id="multiInfo" style="font-size: 11px; color: #888; text-align: center;"></p>
+
+        <div id="stepLocal" class="hidden step">
+            <span class="label">2. あなたの短縮コード (相手に送る):</span>
+            <textarea id="localSdp" readonly></textarea>
+            <button id="copyBtn" style="width:100%; font-size: 12px;" onclick="copyCode()">コピーして相手に送る</button>
+        </div>
     </div>
     
     <button id="stopBtn" class="hidden" style="width:100%; margin-top:10px; border-color: #ff4141; color: #ff4141;" onclick="location.reload()">全終了</button>
@@ -51,56 +51,80 @@
     const v = document.getElementById('v'), localSdp = document.getElementById('localSdp'), remoteSdp = document.getElementById('remoteSdp'), status = document.getElementById('status');
     let pc, stream, connections = [];
 
-    // 極限までコードを短くするための設定 (ICE候補を限定)
-    const config = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }], iceTransportPolicy: 'all', bundlePolicy: 'max-bundle' };
+    const config = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
     function setStatus(msg) { status.innerText = ">> " + msg; }
 
+    // iOS/AndroidでBase64を安定させるための処理
+    function safeAtob(str) { return decodeURIComponent(escape(window.atob(str.trim().replace(/\s/g, '')))); }
+    function safeBtoa(str) { return window.btoa(unescape(encodeURIComponent(str))); }
+
     function createPC() {
         const newPc = new RTCPeerConnection(config);
+        
         newPc.onicecandidate = (e) => {
-            if (!e.candidate) {
-                // SDPを圧縮して短くする (不要な情報をカット)
-                const sdp = newPc.localDescription.sdp.split('\r\n').filter(line => !line.startsWith('a=candidate:1 ')).join('\r\n');
-                localSdp.value = btoa(sdp); // Base64で更なる短縮
-                setStatus("コード生成完了。相手に送ってください。");
+            if (!e.candidate && newPc.localDescription) {
+                try {
+                    localSdp.value = safeBtoa(newPc.localDescription.sdp);
+                    document.getElementById('stepLocal').classList.remove('hidden');
+                    setStatus("準備完了！コードをコピーして相手に送ってください。");
+                } catch(err) { setStatus("エラー: コード生成に失敗"); }
             }
         };
+
         newPc.ontrack = (e) => {
-            v.srcObject = e.streams[0];
-            setStatus("ストリーム受信中");
+            if (v.srcObject !== e.streams[0]) {
+                v.srcObject = e.streams[0];
+                setStatus("映像を受信！音声を出すにはビデオをタップしてください");
+                // iOSの「ユーザー操作による再生開始」が必要なケースに対応
+                const playPromise = v.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(() => {
+                        v.muted = true; // 失敗時は一度ミュートにして再生を試みる
+                        v.play();
+                    });
+                }
+            }
         };
+
         return newPc;
     }
 
     async function initHost() {
         try {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+                alert("画面配信はPCのChrome等で行ってください。スマホは視聴のみ可能です。");
+                return;
+            }
             stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
             v.srcObject = stream;
             v.muted = true;
-            prepareNewConnection();
-            document.getElementById('multiInfo').innerText = "複数人に配信する場合：一人と接続完了後、再度「1.短縮コード」を生成して次の人に送ってください。";
             showCommArea("配信ホスト");
-        } catch (e) { alert("失敗"); }
+            prepareNextGuest();
+        } catch (e) { alert("失敗: HTTPS接続であるか確認してください。"); }
     }
 
-    // 複数人対応：新しい視聴者を待機するためのリセット
-    async function prepareNewConnection() {
+    async function prepareNextGuest() {
         pc = createPC();
         stream.getTracks().forEach(t => pc.addTrack(t, stream));
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
-        localSdp.value = ""; // 前のコードをクリア
+        localSdp.value = "";
+        document.getElementById('stepLocal').classList.add('hidden');
+        remoteSdp.value = "";
     }
 
     async function initGuest() {
         pc = createPC();
         showCommArea("視聴ゲスト");
+        setStatus("ホストからのコードを貼り付けてください。");
     }
 
     async function connect() {
         try {
-            const rawSdp = atob(remoteSdp.value);
+            const val = remoteSdp.value.trim();
+            if(!val) return;
+            const rawSdp = safeAtob(val);
             const type = rawSdp.includes("setup:actpass") ? "offer" : "answer";
             
             await pc.setRemoteDescription(new RTCSessionDescription({ type, sdp: rawSdp }));
@@ -109,17 +133,16 @@
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
             } else {
-                setStatus("P2Pリンク完了！");
-                // 配信側の場合、次の視聴者のために準備
+                setStatus("接続成功！映像が出ない場合は画面をタップ。");
                 if(stream) {
                     connections.push(pc);
                     setTimeout(() => {
-                        prepareNewConnection();
-                        setStatus("次の視聴者のためのコードを準備しました");
-                    }, 2000);
+                        prepareNextGuest();
+                        setStatus("次の視聴者用のコードを生成しました。");
+                    }, 1500);
                 }
             }
-        } catch (e) { alert("コードが正しくありません"); }
+        } catch (e) { alert("エラー: 正しいコードを入力してください。"); }
     }
 
     function showCommArea(mode) {
@@ -131,6 +154,7 @@
 
     function copyCode() {
         localSdp.select();
+        localSdp.setSelectionRange(0, 99999);
         document.execCommand('copy');
         setStatus("コピーしました。相手に送ってください。");
     }
