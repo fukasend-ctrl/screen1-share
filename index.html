@@ -3,334 +3,154 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Enterprise Screen Share | Ultra Stable</title>
+    <title>Ultimate Screen Share</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        :root {
-            --bg-color: #0f172a;
-            --card-bg: #1e293b;
-            --primary: #3b82f6;
-            --success: #22c55e;
-            --danger: #ef4444;
-            --text: #f8fafc;
-            --text-dim: #94a3b8;
-        }
-
-        body {
-            font-family: 'Inter', -apple-system, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text);
-            margin: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-        }
-
-        .app-container {
-            width: 100%;
-            max-width: 800px;
-            padding: 24px;
-            box-sizing: border-box;
-        }
-
-        .video-card {
-            background: #000;
-            border-radius: 16px;
-            position: relative;
-            aspect-ratio: 16 / 9;
-            overflow: hidden;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
-            border: 1px solid var(--card-bg);
-            margin-bottom: 24px;
-        }
-
-        video {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-        }
-
-        .overlay {
-            position: absolute;
-            inset: 0;
-            background: rgba(15, 23, 42, 0.9);
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 20;
-            backdrop-filter: blur(4px);
-        }
-
-        .controls {
-            background: var(--card-bg);
-            padding: 24px;
-            border-radius: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .input-group {
-            display: flex;
-            gap: 8px;
-        }
-
-        input {
-            flex: 1;
-            padding: 14px;
-            border-radius: 12px;
-            border: 1px solid #334155;
-            background: #0f172a;
-            color: white;
-            font-size: 16px;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-
-        input:focus { border-color: var(--primary); }
-
-        .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-
-        button {
-            padding: 14px 20px;
-            border-radius: 12px;
-            border: none;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-success { background: var(--success); color: white; }
-        .btn-danger { background: var(--danger); color: white; }
+        :root { --primary: #007aff; --bg: #000000; --panel: #1c1c1e; --text: #ffffff; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        .video-section { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; background: #000; }
+        video { width: 100%; height: 100%; object-fit: contain; }
         
-        button:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px); }
-        button:active:not(:disabled) { transform: translateY(0); }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .overlay-btn { position: absolute; z-index: 100; background: var(--primary); color: white; border: none; padding: 20px 40px; border-radius: 50px; font-size: 18px; font-weight: bold; cursor: pointer; display: none; box-shadow: 0 4px 15px rgba(0,122,255,0.5); }
+        
+        .ui-panel { background: var(--panel); padding: 20px; border-radius: 20px 20px 0 0; display: flex; flex-direction: column; gap: 15px; }
+        .input-group { display: flex; gap: 10px; }
+        input { flex: 1; padding: 15px; border-radius: 12px; border: 1px solid #333; background: #2c2c2e; color: #fff; font-size: 16px; outline: none; }
+        
+        .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        button { padding: 15px; border-radius: 12px; border: none; font-weight: bold; font-size: 15px; cursor: pointer; transition: 0.2s; }
+        .btn-host { background: var(--primary); color: white; }
+        .btn-view { background: #32d74b; color: white; }
+        .btn-stop { background: #ff453a; color: white; display: none; width: 100%; }
 
-        .status-bar {
-            font-size: 13px;
-            color: var(--text-dim);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-        }
-
-        .dot { width: 8px; height: 8px; border-radius: 50%; background: #475569; transition: background 0.3s; }
-        .dot.active { background: var(--success); box-shadow: 0 0 8px var(--success); }
-
-        #copyBtn { font-size: 11px; padding: 4px 8px; background: #334155; }
-
-        /* Mobile specific adjustments */
-        @media (max-width: 480px) {
-            .app-container { padding: 16px; }
-            .btn-group { grid-template-columns: 1fr; }
-        }
+        #status { font-size: 12px; color: #8e8e93; text-align: center; }
+        .loader { width: 20px; height: 20px; border: 3px solid #333; border-top: 3px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; display: none; margin: 0 auto 10px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-<div class="app-container">
-    <div class="video-card">
-        <div id="playOverlay" class="overlay">
-            <button class="btn-success" style="padding: 20px 40px; border-radius: 50px;" onclick="app.forcePlay()">
-                <span style="font-size: 24px;">▶</span> 視聴を開始
-            </button>
-            <p style="margin-top: 16px; color: var(--text-dim);">自動再生が制限されました</p>
-        </div>
-        <video id="display" autoplay playsinline webkit-playsinline></video>
+<div class="video-section">
+    <div id="statusIndicator" class="loader"></div>
+    <button id="playBtn" class="overlay-btn" onclick="manualPlay()">▶ 画面を表示する</button>
+    <video id="mainVideo" autoplay playsinline webkit-playsinline></video>
+</div>
+
+<div class="ui-panel">
+    <div id="status">ルームIDを入力して開始</div>
+    <div class="input-group" id="inputArea">
+        <input type="text" id="roomId" placeholder="例: room777" spellcheck="false">
     </div>
-
-    <div class="controls">
-        <div class="input-group">
-            <input type="text" id="roomId" placeholder="ルームIDを入力" maxlength="20">
-            <button id="copyBtn" style="display:none;" onclick="app.copyLink()">IDコピー</button>
-        </div>
-        
-        <div class="btn-group" id="actionPanel">
-            <button class="btn-primary" id="shareBtn" onclick="app.startSharing()">
-                配信を開始 (PC)
-            </button>
-            <button class="btn-success" id="viewBtn" onclick="app.startViewing()">
-                視聴する
-            </button>
-        </div>
-
-        <button class="btn-danger" id="stopBtn" style="display:none;" onclick="app.terminate()">
-            接続を終了する
-        </button>
-
-        <div class="status-bar">
-            <div id="statusDot" class="dot"></div>
-            <span id="statusText">システム待機中</span>
-        </div>
+    <div class="btn-row" id="controlBtns">
+        <button class="btn-host" onclick="actAsHost()">配信(PC)</button>
+        <button class="btn-view" onclick="actAsViewer()">視聴</button>
     </div>
+    <button id="stopBtn" class="btn-stop" onclick="terminate()">終了する</button>
 </div>
 
 <script>
-/**
- * ScreenShareManager: 設計意図
- * 1. 状態の一元管理 (state)
- * 2. WebRTCリソースの徹底した解放
- * 3. モバイルブラウザの再生制限対策
- */
-class ScreenShareManager {
-    constructor() {
-        this.peer = null;
-        this.localStream = null;
-        this.wakeLock = null;
-        this.elements = {
-            video: document.getElementById('display'),
-            roomId: document.getElementById('roomId'),
-            statusText: document.getElementById('statusText'),
-            statusDot: document.getElementById('statusDot'),
-            overlay: document.getElementById('playOverlay'),
-            stopBtn: document.getElementById('stopBtn'),
-            actionPanel: document.getElementById('actionPanel'),
-            copyBtn: document.getElementById('copyBtn')
-        };
+    let peer = null;
+    let localStream = null;
+    const videoEl = document.getElementById('mainVideo');
+    const statusEl = document.getElementById('status');
+    const playBtn = document.getElementById('playBtn');
+    const loader = document.getElementById('statusIndicator');
+
+    function updateStatus(msg, loading = false) {
+        statusEl.innerText = msg;
+        loader.style.display = loading ? 'block' : 'none';
     }
 
-    updateStatus(msg, isActive = false) {
-        this.elements.statusText.innerText = msg;
-        this.elements.statusDot.className = isActive ? 'dot active' : 'dot';
-    }
-
-    // モバイル視聴において最も重要な「ユーザー操作による再生」
-    async forcePlay() {
+    async function manualPlay() {
         try {
-            await this.elements.video.play();
-            this.elements.overlay.style.display = 'none';
+            await videoEl.play();
+            playBtn.style.display = 'none';
         } catch (e) {
-            console.error("Force play failed", e);
+            console.error("Play failed", e);
         }
     }
 
-    // 画面消灯を防止 (商用アプリ必須機能)
-    async requestWakeLock() {
-        if ('wakeLock' in navigator) {
-            try {
-                this.wakeLock = await navigator.wakeLock.request('screen');
-            } catch (err) {
-                console.warn("WakeLock failed:", err);
-            }
-        }
-    }
-
-    async startSharing() {
-        const id = this.elements.roomId.value.trim();
-        if (!id) return alert("ルームIDを入力してください");
+    // --- ホスト側 (配信) ---
+    async function actAsHost() {
+        const id = document.getElementById('roomId').value.trim();
+        if (!id) return alert("IDを入力してください");
 
         try {
-            this.localStream = await navigator.mediaDevices.getDisplayMedia({
-                video: { cursor: "always", frameRate: 30 },
-                audio: { echoCancellation: true, noiseSuppression: true }
+            localStream = await navigator.mediaDevices.getDisplayMedia({
+                video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { max: 30 } },
+                audio: true
+            });
+            videoEl.srcObject = localStream;
+            videoEl.muted = true;
+
+            peer = new Peer(id, { config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] }, debug: 1 });
+
+            peer.on('open', () => {
+                updateStatus(`配信中: ID「${id}」を相手に入力させてください`);
+                showStopButton();
             });
 
-            this.elements.video.srcObject = this.localStream;
-            this.elements.video.muted = true; // ハウリング防止
-
-            this.peer = new Peer(id, { debug: 1 });
-            
-            this.peer.on('open', () => {
-                this.updateStatus(`配信中: ${id}`, true);
-                this.toggleUI(true);
+            peer.on('call', (call) => {
+                updateStatus("視聴者が接続しました");
+                call.answer(localStream);
             });
 
-            this.peer.on('call', (call) => {
-                call.answer(this.localStream);
-                this.updateStatus("視聴者が接続しました", true);
-            });
-
-            this.peer.on('error', (err) => this.handlePeerError(err));
-
-            // OS側の「共有を停止」ボタン連動
-            this.localStream.getVideoTracks()[0].onended = () => this.terminate();
-
+            localStream.getVideoTracks()[0].onended = () => terminate();
         } catch (e) {
-            console.error(e);
-            alert("配信に失敗しました。権限とPCブラウザを確認してください。");
+            alert("PCブラウザで「画面共有」を許可してください。");
         }
     }
 
-    startViewing() {
-        const id = this.elements.roomId.value.trim();
+    // --- 視聴側 ---
+    function actAsViewer() {
+        const id = document.getElementById('roomId').value.trim();
         if (!id) return alert("接続先IDを入力してください");
 
-        this.updateStatus("接続を試みています...");
-        this.peer = new Peer();
+        updateStatus("ホストを探しています...", true);
+        if (peer) peer.destroy();
 
-        this.peer.on('open', () => {
-            const call = this.peer.call(id, new MediaStream());
+        // 視聴側はランダムIDで開始
+        peer = new Peer({ config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] } });
 
+        peer.on('open', () => {
+            // 接続試行
+            const call = peer.call(id, new MediaStream());
+            
             call.on('stream', (remoteStream) => {
-                this.elements.video.srcObject = remoteStream;
-                this.toggleUI(true);
-                this.updateStatus("受信中", true);
-                this.requestWakeLock();
-
-                // 自動再生試行
-                this.elements.video.play().catch(() => {
-                    this.elements.overlay.style.display = 'flex';
+                updateStatus("接続成功！映像を受信しています");
+                videoEl.srcObject = remoteStream;
+                showStopButton();
+                
+                // 自動再生に失敗したらボタンを出す（スマホ対策）
+                videoEl.play().catch(() => {
+                    playBtn.style.display = 'block';
+                    updateStatus("ボタンを押して再生してください");
                 });
             });
 
-            // 接続断絶を検知
-            call.on('close', () => this.terminate());
+            // 10秒待っても反応がない場合
+            setTimeout(() => {
+                if (!videoEl.srcObject) {
+                    updateStatus("ホストが見つかりません。IDを確認するか、ホストの配信開始を待ってください。");
+                }
+            }, 10000);
         });
 
-        this.peer.on('error', (err) => this.handlePeerError(err));
+        peer.on('error', (err) => {
+            updateStatus("エラー: " + err.type);
+            console.error(err);
+        });
     }
 
-    handlePeerError(err) {
-        let msg = "接続エラー";
-        if (err.type === 'unavailable-id') msg = "IDが既に使用されています";
-        if (err.type === 'peer-dotnet-found') msg = "ホストが見つかりません";
-        alert(msg);
-        this.terminate();
+    function showStopButton() {
+        document.getElementById('inputArea').style.display = 'none';
+        document.getElementById('controlBtns').style.display = 'none';
+        document.getElementById('stopBtn').style.display = 'block';
     }
 
-    copyLink() {
-        navigator.clipboard.writeText(this.elements.roomId.value);
-        alert("IDをコピーしました");
+    function terminate() {
+        location.reload(); // 最も確実に初期化するためにリロードを使用
     }
-
-    toggleUI(isStarted) {
-        this.elements.actionPanel.style.display = isStarted ? 'none' : 'grid';
-        this.elements.roomId.readOnly = isStarted;
-        this.elements.stopBtn.style.display = isStarted ? 'flex' : 'none';
-        this.elements.copyBtn.style.display = isStarted ? 'block' : 'none';
-    }
-
-    terminate() {
-        // 全リソースを解放
-        if (this.localStream) {
-            this.localStream.getTracks().forEach(t => t.stop());
-            this.localStream = null;
-        }
-        if (this.peer) {
-            this.peer.destroy();
-            this.peer = null;
-        }
-        if (this.wakeLock) {
-            this.wakeLock.release();
-            this.wakeLock = null;
-        }
-        this.elements.video.srcObject = null;
-        this.elements.overlay.style.display = 'none';
-        this.toggleUI(false);
-        this.updateStatus("システム待機中", false);
-    }
-}
-
-const app = new ScreenShareManager();
 </script>
 </body>
 </html>
