@@ -2,20 +2,31 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>シンプル画面共有</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <title>画面共有プロ v2</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-        .container { background: white; padding: 20px; border-radius: 12px; shadow: 0 4px 6px rgba(0,0,0,0.1); width: 100%; max-width: 800px; text-align: center; }
-        video { width: 100%; border-radius: 8px; background: #000; margin-top: 15px; }
-        .controls { margin-bottom: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-        input { padding: 10px; border: 1px solid #ddd; border-radius: 6px; }
-        button { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 10px; box-sizing: border-box; }
+        .container { background: #1e1e1e; padding: 20px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 100%; max-width: 1000px; text-align: center; }
+        
+        .video-wrapper { position: relative; width: 100%; background: #000; border-radius: 12px; overflow: hidden; aspect-ratio: 16 / 9; margin-top: 15px; display: flex; align-items: center; justify-content: center; border: 1px solid #333; }
+        video { width: 100%; height: 100%; object-fit: contain; }
+        
+        .controls { margin-bottom: 20px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+        input { padding: 12px; border: 1px solid #333; border-radius: 8px; background: #2d2d2d; color: white; width: 180px; outline: none; transition: 0.3s; }
+        input:focus { border-color: #0081f2; background: #333; }
+        
+        button { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; font-size: 14px; display: flex; align-items: center; gap: 5px; }
         .btn-share { background: #0081f2; color: white; }
         .btn-view { background: #25ba3b; color: white; }
-        button:hover { opacity: 0.8; }
-        #status { font-size: 0.9rem; color: #666; margin-top: 10px; }
+        .btn-stop { background: #f25a5a; color: white; display: none; } /* 初期状態は非表示 */
+        
+        button:hover { opacity: 0.8; transform: translateY(-1px); }
+        button:active { transform: translateY(0); }
+        button:disabled { background: #555; cursor: not-allowed; opacity: 0.5; }
+        
+        #status { font-size: 0.85rem; color: #aaa; margin: 10px 0; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; display: inline-block; width: 100%; max-width: 500px; box-sizing: border-box; }
+        h1 { font-size: 1.4rem; margin: 10px 0 20px; }
     </style>
 </head>
 <body>
@@ -24,84 +35,147 @@
     <h1>Simple Screen Share</h1>
     
     <div class="controls">
-        <input type="text" id="roomId" placeholder="ルームIDを入力（例: my-room）">
-        <button class="btn-share" onclick="startHosting()">画面を共有する</button>
-        <button class="btn-view" onclick="startViewing()">視聴する</button>
+        <input type="text" id="roomId" placeholder="ルームIDを入力">
+        <button id="hostBtn" class="btn-share" onclick="startHosting()">
+            <span>▶</span> 共有を開始
+        </button>
+        <button id="viewBtn" class="btn-view" onclick="startViewing()">
+            <span>👁</span> 視聴する
+        </button>
+        <button id="stopBtn" class="btn-stop" onclick="stopSharing()">
+            <span>■</span> 共有を停止
+        </button>
     </div>
 
     <div id="status">ステータス: 待機中</div>
-    <video id="remoteVideo" autoplay playsinline controls></video>
+
+    <div class="video-wrapper">
+        <video id="remoteVideo" autoplay playsinline webkit-playsinline controls></video>
+    </div>
 </div>
 
 <script>
     let peer = null;
     let localStream = null;
+    let currentCall = null;
 
-    // ステータス更新
+    const hostBtn = document.getElementById('hostBtn');
+    const viewBtn = document.getElementById('viewBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const videoEl = document.getElementById('remoteVideo');
+
     function setStatus(msg) {
-        document.getElementById('status').innerText = 'ステータス: ' + msg;
+        document.getElementById('status').innerText = '● ' + msg;
     }
 
-    // 共有を開始する（ホスト側）
+    // --- 共有を停止する関数 ---
+    function stopSharing() {
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+            localStream = null;
+        }
+        if (peer) {
+            peer.destroy();
+            peer = null;
+        }
+        videoEl.srcObject = null;
+        
+        // ボタンの表示切り替え
+        hostBtn.style.display = 'inline-flex';
+        viewBtn.style.display = 'inline-flex';
+        stopBtn.style.display = 'none';
+        
+        setStatus('共有を停止しました。');
+    }
+
+    // --- ホスト（共有側）の開始 ---
     async function startHosting() {
         const id = document.getElementById('roomId').value;
         if (!id) return alert('ルームIDを入力してください');
 
         try {
             // 画面キャプチャの開始
-            localStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-            document.getElementById('remoteVideo').srcObject = localStream;
+            localStream = await navigator.mediaDevices.getDisplayMedia({
+                video: { cursor: "always" },
+                audio: true
+            });
 
-            // Peerの作成（ルームIDを自らのIDとする）
+            videoEl.srcObject = localStream;
+            
+            // PeerJS接続（IDを指定）
             peer = new Peer(id);
             
             peer.on('open', () => {
-                setStatus('共有中... ルームID: ' + id + ' を相手に伝えてください');
+                setStatus(`共有中！相手にID「${id}」を伝えてください。`);
+                hostBtn.style.display = 'none';
+                viewBtn.style.display = 'none';
+                stopBtn.style.display = 'inline-flex';
             });
 
-            // 接続要求（視聴者）が来た時の処理
+            // 視聴者からの着信
             peer.on('call', (call) => {
-                call.answer(localStream); // 自分の画面ストリームを返す
-                setStatus('視聴者が接続しました');
+                call.answer(localStream);
+                setStatus('視聴者が接続しました。');
             });
 
             peer.on('error', (err) => {
                 if (err.type === 'unavailable-id') {
-                    alert('そのルームIDは既に使用されています。別のIDにしてください。');
+                    alert('そのIDは既に使用されています。別のIDを試してください。');
                 } else {
-                    console.error(err);
+                    alert('エラーが発生しました: ' + err.type);
                 }
+                stopSharing();
             });
+
+            // ブラウザ標準の「共有を停止」ボタンを押した時
+            localStream.getVideoTracks()[0].onended = () => {
+                stopSharing();
+            };
 
         } catch (err) {
             console.error(err);
-            setStatus('エラー: 画面共有が許可されませんでした');
+            setStatus('エラー: 共有がキャンセルされました。');
         }
     }
 
-    // 視聴を開始する（視聴者側）
+    // --- リスナー（視聴側）の開始 ---
     function startViewing() {
         const id = document.getElementById('roomId').value;
         if (!id) return alert('接続先のルームIDを入力してください');
 
-        // ランダムなIDで自分のPeerを作成
+        if(peer) peer.destroy();
         peer = new Peer();
         
         peer.on('open', () => {
             setStatus('接続を試みています...');
             
-            // 相手（ホスト）に電話をかける（ストリームなしで開始）
+            // 相手に接続。受信のみなので空のストリームを渡すか、PeerJSの仕様に合わせてコール
             const call = peer.call(id, new MediaStream());
-            
+            currentCall = call;
+
             call.on('stream', (remoteStream) => {
-                setStatus('受信中');
-                document.getElementById('remoteVideo').srcObject = remoteStream;
+                videoEl.srcObject = remoteStream;
+                
+                // 自動再生対策
+                videoEl.play().catch(() => {
+                    setStatus('再生がブロックされました。画面をタップして再生してください。');
+                });
+                
+                setStatus('視聴中：共有画面を表示しています。');
+                hostBtn.style.display = 'none';
+                viewBtn.style.display = 'none';
+                stopBtn.innerText = '視聴を終了';
+                stopBtn.style.display = 'inline-flex';
             });
 
             call.on('error', (err) => {
-                alert('接続エラー: ルームが存在しないか、通信に失敗しました');
-                console.error(err);
+                alert('接続に失敗しました。IDが正しいか確認してください。');
+                stopSharing();
             });
+        });
+
+        peer.on('error', (err) => {
+            setStatus('接続エラー: ' + err.type);
         });
     }
 </script>
