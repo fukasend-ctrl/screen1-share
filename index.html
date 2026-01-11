@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>シンプル画面共有</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        body { font-family: sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .container { background: white; padding: 20px; border-radius: 12px; shadow: 0 4px 6px rgba(0,0,0,0.1); width: 100%; max-width: 800px; text-align: center; }
+        video { width: 100%; border-radius: 8px; background: #000; margin-top: 15px; }
+        .controls { margin-bottom: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+        input { padding: 10px; border: 1px solid #ddd; border-radius: 6px; }
+        button { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .btn-share { background: #0081f2; color: white; }
+        .btn-view { background: #25ba3b; color: white; }
+        button:hover { opacity: 0.8; }
+        #status { font-size: 0.9rem; color: #666; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Simple Screen Share</h1>
+    
+    <div class="controls">
+        <input type="text" id="roomId" placeholder="ルームIDを入力（例: my-room）">
+        <button class="btn-share" onclick="startHosting()">画面を共有する</button>
+        <button class="btn-view" onclick="startViewing()">視聴する</button>
+    </div>
+
+    <div id="status">ステータス: 待機中</div>
+    <video id="remoteVideo" autoplay playsinline controls></video>
+</div>
+
+<script>
+    let peer = null;
+    let localStream = null;
+
+    // ステータス更新
+    function setStatus(msg) {
+        document.getElementById('status').innerText = 'ステータス: ' + msg;
+    }
+
+    // 共有を開始する（ホスト側）
+    async function startHosting() {
+        const id = document.getElementById('roomId').value;
+        if (!id) return alert('ルームIDを入力してください');
+
+        try {
+            // 画面キャプチャの開始
+            localStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+            document.getElementById('remoteVideo').srcObject = localStream;
+
+            // Peerの作成（ルームIDを自らのIDとする）
+            peer = new Peer(id);
+            
+            peer.on('open', () => {
+                setStatus('共有中... ルームID: ' + id + ' を相手に伝えてください');
+            });
+
+            // 接続要求（視聴者）が来た時の処理
+            peer.on('call', (call) => {
+                call.answer(localStream); // 自分の画面ストリームを返す
+                setStatus('視聴者が接続しました');
+            });
+
+            peer.on('error', (err) => {
+                if (err.type === 'unavailable-id') {
+                    alert('そのルームIDは既に使用されています。別のIDにしてください。');
+                } else {
+                    console.error(err);
+                }
+            });
+
+        } catch (err) {
+            console.error(err);
+            setStatus('エラー: 画面共有が許可されませんでした');
+        }
+    }
+
+    // 視聴を開始する（視聴者側）
+    function startViewing() {
+        const id = document.getElementById('roomId').value;
+        if (!id) return alert('接続先のルームIDを入力してください');
+
+        // ランダムなIDで自分のPeerを作成
+        peer = new Peer();
+        
+        peer.on('open', () => {
+            setStatus('接続を試みています...');
+            
+            // 相手（ホスト）に電話をかける（ストリームなしで開始）
+            const call = peer.call(id, new MediaStream());
+            
+            call.on('stream', (remoteStream) => {
+                setStatus('受信中');
+                document.getElementById('remoteVideo').srcObject = remoteStream;
+            });
+
+            call.on('error', (err) => {
+                alert('接続エラー: ルームが存在しないか、通信に失敗しました');
+                console.error(err);
+            });
+        });
+    }
+</script>
+
+</body>
+</html>
