@@ -3,161 +3,172 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Multi-Screen Share Pro</title>
-    <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
+    <title>Multi-Screen Share (Stable)</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        :root { --primary: #0081f2; --bg: #0f172a; --panel: #1e293b; --text: #f8fafc; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; min-height: 100vh; align-items: center; justify-content: center; }
-        .container { width: 95%; max-width: 600px; background: var(--panel); padding: 25px; border-radius: 20px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3); text-align: center; }
-        .video-box { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; overflow: hidden; margin: 15px 0; border: 1px solid #334155; }
+        :root { --primary: #007aff; --bg: #000; --panel: #1c1c1e; --text: #fff; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        /* ビデオエリア */
+        .video-section { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; background: #000; }
         video { width: 100%; height: 100%; object-fit: contain; }
-        .room-display { font-size: 32px; font-weight: bold; color: var(--primary); letter-spacing: 5px; margin: 10px 0; }
-        input { width: 100%; padding: 15px; border-radius: 12px; border: 1px solid #334155; background: #0f172a; color: #fff; font-size: 20px; text-align: center; margin-bottom: 15px; outline: none; box-sizing: border-box; }
-        input:focus { border-color: var(--primary); }
-        .btn { width: 100%; padding: 15px; border-radius: 12px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s; margin-bottom: 10px; }
+        
+        /* スマホ用再生ボタン */
+        .overlay-btn { position: absolute; z-index: 100; background: #32d74b; color: white; border: none; padding: 20px 40px; border-radius: 50px; font-size: 18px; font-weight: bold; cursor: pointer; display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        
+        /* 操作パネル */
+        .ui-panel { background: var(--panel); padding: 20px; border-radius: 20px 20px 0 0; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 -5px 20px rgba(0,0,0,0.5); }
+        .room-info { font-size: 24px; font-weight: bold; color: var(--primary); text-align: center; letter-spacing: 3px; }
+        
+        .input-group { display: flex; flex-direction: column; gap: 10px; }
+        input { padding: 15px; border-radius: 12px; border: 1px solid #333; background: #2c2c2e; color: #fff; font-size: 18px; text-align: center; outline: none; }
+        
+        .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        button { padding: 15px; border-radius: 12px; border: none; font-weight: bold; font-size: 15px; cursor: pointer; transition: 0.2s; }
         .btn-host { background: var(--primary); color: white; }
-        .btn-view { background: #22c55e; color: white; }
-        .btn-stop { background: #ef4444; color: white; display: none; }
-        #status { font-size: 13px; color: #94a3b8; margin-top: 10px; }
-        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 100; flex-direction: column; }
+        .btn-view { background: #32d74b; color: white; }
+        .btn-stop { background: #ff453a; color: white; display: none; width: 100%; }
+
+        #status { font-size: 13px; color: #8e8e93; text-align: center; min-height: 1.2em; }
     </style>
 </head>
 <body>
 
-<div class="container" id="setup">
-    <h2 style="margin-top:0">Screen Share Pro</h2>
-    <div id="status">ルームIDを入力して開始</div>
-    
-    <div class="room-display" id="displayId">-----</div>
-
-    <div id="inputArea">
-        <input type="number" id="roomId" placeholder="5桁の数字を入力" oninput="if(value.length>5)value=value.slice(0,5)">
-        <button class="btn btn-view" onclick="startViewing()">視聴を開始する</button>
-        <div style="margin: 15px 0; color: #64748b;">または</div>
-        <button class="btn btn-host" onclick="startHosting()">新しく配信を開始 (PC)</button>
-    </div>
-
-    <div class="video-box">
-        <video id="v" autoplay playsinline webkit-playsinline></video>
-    </div>
-
-    <button id="stopBtn" class="btn btn-stop" onclick="location.reload()">配信・視聴を終了</button>
+<div class="video-section">
+    <button id="playBtn" class="overlay-btn" onclick="manualPlay()">▶ 視聴を開始する</button>
+    <video id="mainVideo" autoplay playsinline webkit-playsinline></video>
 </div>
 
-<div id="playOverlay" class="overlay" onclick="forcePlay()">
-    <button class="btn" style="width:auto; padding: 20px 40px; border-radius: 50px; background:#22c55e; color:#fff; font-size:20px;">▶ 視聴を開始</button>
+<div class="ui-panel">
+    <div id="status">5桁のコードを入力または発行</div>
+    
+    <div id="roomIdDisplay" class="room-info" style="display:none;"></div>
+
+    <div class="input-group" id="setupArea">
+        <input type="number" id="roomIdInput" placeholder="5桁の数字を入力" oninput="if(value.length>5)value=value.slice(0,5)">
+        <div class="btn-row">
+            <button class="btn-view" onclick="actAsViewer()">視聴する</button>
+            <button class="btn-host" onclick="actAsHost()">配信(PC)</button>
+        </div>
+    </div>
+    
+    <button id="stopBtn" class="btn-stop" onclick="terminate()">終了する</button>
 </div>
 
 <script>
-    // Firebaseの設定 (公共のデモ用DB。商用利用時は自身のプロジェクト情報を推奨)
-    const firebaseConfig = {
-        databaseURL: "https://manus-screen-share-default-rtdb.firebaseio.com/"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
-    const video = document.getElementById('v');
-    const status = document.getElementById('status');
+    let peer = null;
+    let localStream = null;
+    const videoEl = document.getElementById('mainVideo');
+    const statusEl = document.getElementById('status');
+    const playBtn = document.getElementById('playBtn');
+    const setupArea = document.getElementById('setupArea');
     const stopBtn = document.getElementById('stopBtn');
-    const inputArea = document.getElementById('inputArea');
-    const displayId = document.getElementById('displayId');
-    const playOverlay = document.getElementById('playOverlay');
+    const roomIdDisplay = document.getElementById('roomIdDisplay');
 
-    let pc, localStream;
-    const config = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
-
-    function setStatus(msg) { status.innerText = msg; }
-
-    function forcePlay() {
-        video.play();
-        playOverlay.style.display = 'none';
+    function updateStatus(msg) {
+        statusEl.innerText = msg;
     }
 
-    // --- 【配信側】PC用 ---
-    async function startHosting() {
-        const id = Math.floor(10000 + Math.random() * 90000).toString(); // 5桁生成
+    async function manualPlay() {
         try {
-            localStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-            video.srcObject = localStream;
-            video.muted = true;
-
-            displayId.innerText = id;
-            inputArea.style.display = 'none';
-            stopBtn.style.display = 'block';
-            setStatus("視聴者の接続を待機中...");
-
-            // 誰かが接続してきたら（Offerが届いたら）応答する
-            db.ref('rooms/' + id + '/offers').on('child_added', async (snapshot) => {
-                const data = snapshot.val();
-                if (!data) return;
-
-                const peerConnection = new RTCPeerConnection(config);
-                localStream.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
-
-                peerConnection.onicecandidate = (e) => {
-                    if (e.candidate) db.ref('rooms/' + id + '/candidates/' + data.from).push(e.candidate);
-                };
-
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
-                const answer = await peerConnection.createAnswer();
-                await peerConnection.setLocalDescription(answer);
-
-                db.ref('rooms/' + id + '/answers/' + data.from).set({ answer });
-                setStatus("視聴者が1人追加されました");
-            });
-
-            // 終了処理
-            localStream.getVideoTracks()[0].onended = () => location.reload();
-            db.ref('rooms/' + id).onDisconnect().remove();
-
-        } catch (e) { alert("PCで画面共有を許可してください"); }
+            await videoEl.play();
+            playBtn.style.display = 'none';
+        } catch (e) {
+            console.error(e);
+        }
     }
 
-    // --- 【視聴側】スマホ・PC用 ---
-    async function startViewing() {
-        const id = document.getElementById('roomId').value;
-        if (id.length !== 5) return alert("5桁の数字を入力してください");
+    // --- ホスト側 (PCから配信) ---
+    async function actAsHost() {
+        // 5桁のランダムな数字をIDにする
+        const id = Math.floor(10000 + Math.random() * 90000).toString();
 
-        const myId = Math.random().toString(36).substring(7);
-        setStatus("ホストに接続中...");
-        
-        pc = new RTCPeerConnection(config);
-        
-        pc.onicecandidate = (e) => {
-            if (e.candidate) db.ref('rooms/' + id + '/candidates/host').push(e.candidate);
-        };
-
-        pc.ontrack = (e) => {
-            video.srcObject = e.streams[0];
-            setStatus("受信成功");
-            video.play().catch(() => {
-                playOverlay.style.display = 'flex';
+        try {
+            localStream = await navigator.mediaDevices.getDisplayMedia({
+                video: { cursor: "always" },
+                audio: true
             });
-            inputArea.style.display = 'none';
-            stopBtn.style.display = 'block';
-            displayId.innerText = id;
-        };
+            videoEl.srcObject = localStream;
+            videoEl.muted = true; // 自分の音はミュート
 
-        const offer = await pc.createOffer({ offerToReceiveVideo: true, offerToReceiveAudio: true });
-        await pc.setLocalDescription(offer);
+            // PeerJSサーバーに5桁IDで登録
+            peer = new Peer(id, { debug: 1 });
 
-        // Offerをデータベースに登録
-        db.ref('rooms/' + id + '/offers').push({ offer, from: myId });
+            peer.on('open', () => {
+                roomIdDisplay.innerText = "ROOM ID: " + id;
+                roomIdDisplay.style.display = 'block';
+                setupArea.style.display = 'none';
+                stopBtn.style.display = 'block';
+                updateStatus("配信中：複数の視聴者が同時に接続可能です");
+            });
 
-        // Answerを待機
-        db.ref('rooms/' + id + '/answers/' + myId).on('value', async (snapshot) => {
-            const data = snapshot.val();
-            if (data && !pc.currentRemoteDescription) {
-                await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-            }
+            // 視聴者が接続してきた時の処理（複数人対応）
+            peer.on('call', (call) => {
+                // 誰が来ても同じストリームを返す
+                call.answer(localStream);
+                updateStatus("視聴者が接続しました");
+            });
+
+            peer.on('error', (err) => {
+                if (err.type === 'unavailable-id') {
+                    // 運悪くIDが被ったら再試行
+                    actAsHost();
+                } else {
+                    alert("エラー: " + err.type);
+                }
+            });
+
+            localStream.getVideoTracks()[0].onended = () => terminate();
+
+        } catch (e) {
+            alert("画面共有を許可してください。");
+        }
+    }
+
+    // --- 視聴側 (スマホ・PCから接続) ---
+    function actAsViewer() {
+        const id = document.getElementById('roomIdInput').value;
+        if (id.length !== 5) return alert("5桁のルームIDを入力してください");
+
+        updateStatus("接続を試みています...");
+        if (peer) peer.destroy();
+
+        // 視聴側はランダムなIDでPeerを作成
+        peer = new Peer({ debug: 1 });
+
+        peer.on('open', () => {
+            // ホスト(5桁ID)を呼び出す。空のストリームを渡すのがPeerJSのコツ
+            const call = peer.call(id, new MediaStream());
+            
+            call.on('stream', (remoteStream) => {
+                updateStatus("接続成功！画面を受信しています");
+                videoEl.srcObject = remoteStream;
+                
+                setupArea.style.display = 'none';
+                stopBtn.style.display = 'block';
+                roomIdDisplay.innerText = "ROOM ID: " + id;
+                roomIdDisplay.style.display = 'block';
+
+                // 自動再生対策
+                videoEl.play().catch(() => {
+                    playBtn.style.display = 'block';
+                    updateStatus("ボタンを押して再生を開始してください");
+                });
+            });
+
+            // 接続が切れた場合
+            call.on('close', () => terminate());
         });
 
-        // ICE Candidateを待機
-        db.ref('rooms/' + id + '/candidates/' + myId).on('child_added', (snapshot) => {
-            const candidate = snapshot.val();
-            if (candidate) pc.addIceCandidate(new RTCIceCandidate(candidate));
+        peer.on('error', (err) => {
+            alert("ホストが見つからないか、IDが間違っています。");
+            updateStatus("エラー: IDを確認してください");
         });
+    }
+
+    function terminate() {
+        // リロードが最も確実にすべての通信（WebRTC/Peer）をクリーンアップできます
+        location.reload();
     }
 </script>
 </body>
