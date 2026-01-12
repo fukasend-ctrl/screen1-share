@@ -3,69 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stream Viewer</title>
+    <title>Nexus Stream v6 (Auto-Signaling)</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { background: #000; color: #00ff41; font-family: monospace; text-align: center; display: flex; flex-direction: column; height: 100vh; justify-content: center; margin: 0; }
-        .container { border: 1px solid #00ff41; padding: 20px; margin: 20px; border-radius: 10px; background: #0a0a0a; }
-        input { background: #000; border: 1px solid #00ff41; color: #00ff41; padding: 15px; font-size: 24px; width: 80%; max-width: 250px; text-align: center; border-radius: 8px; outline: none; }
-        button { background: #00ff41; color: #000; border: none; padding: 15px 30px; font-weight: bold; cursor: pointer; border-radius: 8px; margin-top: 15px; font-size: 18px; }
-        video { width: 95%; max-width: 900px; border: 1px solid #333; margin-top: 20px; border-radius: 8px; background: #000; }
-        #status { font-size: 14px; margin-top: 10px; color: #fff; }
-        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
+        :root { --p: #00ff41; --bg: #050505; --panel: #111; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--p); margin: 0; padding: 15px; text-align: center; }
+        .container { width: 100%; max-width: 500px; border: 1px solid var(--p); padding: 20px; border-radius: 12px; margin: auto; }
+        #status { font-weight: bold; padding: 10px; margin-bottom: 15px; border-left: 4px solid var(--p); background: var(--panel); }
+        video { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 10px; border: 1px solid #222; }
+        input { width: 100%; padding: 15px; background: #000; color: var(--p); border: 1px solid var(--p); font-size: 24px; text-align: center; border-radius: 8px; margin: 10px 0; outline: none; box-sizing: border-box; }
+        button { width: 100%; background: var(--p); color: #000; border: none; padding: 15px; font-weight: bold; cursor: pointer; border-radius: 6px; font-size: 18px; margin-top: 10px; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
-    <div id="setup" class="container">
-        <h2>ENTER ROOM CODE</h2>
-        <input type="number" id="code" placeholder="00000" oninput="if(value.length>5)value=value.slice(0,5)">
-        <br>
-        <button onclick="join()">CONNECT</button>
-        <div id="status">待機中</div>
+
+<div class="container">
+    <div id="status">システム待機中</div>
+    
+    <div id="setup-area">
+        <input type="number" id="roomId" placeholder="5桁のコードを入力">
+        <button onclick="startView()">視聴を開始する</button>
     </div>
 
-    <div id="videoArea" style="display:none; position: relative;">
-        <video id="v" autoplay playsinline webkit-playsinline></video>
-        <div id="overlay" onclick="forcePlay()">
-            <button>▶ 映像を表示</button>
-        </div>
-        <p>STATUS: RECEIVING...</p>
+    <div id="view-area" class="hidden">
+        <video id="v" autoplay playsinline controls></video>
+        <button style="background:transparent; border:1px solid #555; color:#888; margin-top:10px;" onclick="location.reload()">切断</button>
     </div>
+</div>
 
 <script>
-    const video = document.getElementById('v');
-    const overlay = document.getElementById('overlay');
+    const v = document.getElementById('v');
+    const status = document.getElementById('status');
 
-    function setStatus(msg) { document.getElementById('status').innerText = msg; }
-
-    function join() {
-        const id = document.getElementById('code').value;
+    function startView() {
+        const id = document.getElementById('roomId').value;
         if (id.length !== 5) return alert("5桁のコードを入れてください");
-        
-        setStatus("接続中...");
-        const peer = new Peer(); 
 
+        const peer = new Peer({ debug: 1 }); // 視聴者はランダムID
+        
         peer.on('open', () => {
-            const call = peer.call(id, new MediaStream()); 
+            status.innerText = "ホストに接続要請を送信中...";
+            // ホスト（5桁ID）に向かって発信するだけ！
+            const call = peer.call(id, new MediaStream());
+
             call.on('stream', (stream) => {
-                document.getElementById('setup').style.display = 'none';
-                document.getElementById('videoArea').style.display = 'block';
-                video.srcObject = stream;
-                video.play().catch(() => {
-                    overlay.style.display = 'flex';
+                status.innerText = "映像受信中！";
+                document.getElementById('setup-area').classList.add('hidden');
+                document.getElementById('view-area').classList.remove('hidden');
+                v.srcObject = stream;
+                v.play().catch(() => {
+                    status.innerText = "再生ボタンを押してください";
                 });
             });
         });
 
         peer.on('error', (err) => {
-            alert("接続に失敗しました。配信が開始されているか確認してください。");
-            console.error(err);
+            alert("接続できませんでした。番号が正しいか、配信中か確認してください。");
+            location.reload();
         });
-    }
-
-    function forcePlay() {
-        video.play();
-        overlay.style.display = 'none';
     }
 </script>
 </body>
