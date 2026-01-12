@@ -3,27 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nexus Receiver - Final</title>
+    <title>Nexus Receiver - Relay</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
     <style>
         body { background: #000; color: #00ff41; font-family: monospace; text-align: center; padding: 20px; }
-        input { width: 100%; padding: 15px; background: #111; color: #00ff41; border: 1px solid #00ff41; margin: 10px 0; box-sizing: border-box; }
-        button { width: 100%; padding: 15px; background: #00ff41; color: #000; font-weight: bold; border: none; cursor: pointer; }
+        input { width: 100%; padding: 15px; background: #111; color: #00ff41; border: 1px solid #00ff41; margin: 10px 0; border-radius: 8px; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; background: #00ff41; color: #000; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; }
         video { width: 100%; max-width: 600px; margin-top: 20px; display: none; }
-        #playOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; }
+        #status { font-size: 12px; color: #fff; margin-top: 10px; }
     </style>
 </head>
 <body>
-    <h3>[ 視聴：安定版 ]</h3>
+    <h3>[ 視聴：中継リレーモード ]</h3>
     <div id="setup">
-        <p>PCアプリに表示されたIDを貼り付けてください</p>
-        <input type="text" id="rid" placeholder="長いIDをここに貼り付け">
+        <input type="text" id="rid" placeholder="長いIDを貼り付けてください">
         <button onclick="connect()">接続を開始</button>
-        <p id="status" style="font-size: 12px; color: #aaa;"></p>
+        <p id="status"></p>
     </div>
-
     <video id="v" playsinline autoplay controls></video>
-    <div id="playOverlay" onclick="forceStart()"><button>▶ 映像を表示</button></div>
 
 <script>
     const video = document.getElementById('v');
@@ -34,26 +31,41 @@
         const id = document.getElementById('rid').value.trim();
         if (!id) return alert("IDを入力してください");
 
-        if (peer) peer.destroy();
-        status.innerText = "接続中...";
+        status.innerText = "中継サーバー経由で接続を確立中...";
 
-        peer = new Peer({ config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] } });
+        // 視聴側も中継サーバー設定を合わせる
+        peer = new Peer({
+            config: {
+                iceServers: [
+                    {
+                        urls: [
+                            "turn:openrelay.metered.ca:80",
+                            "turn:openrelay.metered.ca:443",
+                            "turn:openrelay.metered.ca:443?transport=tcp"
+                        ],
+                        username: "openrelayproject",
+                        credential: "openrelayproject"
+                    }
+                ],
+                iceTransportPolicy: 'relay'
+            }
+        });
 
         peer.on('open', () => {
-            const call = peer.call(id, new MediaStream(), {
-                sdpTransform: sdp => sdp.replace(/a=candidate:.+?\.local.+?\r\n/g, '')
-            });
-
+            const call = peer.call(id, new MediaStream());
             call.on('stream', (stream) => {
+                status.innerText = "受信成功";
                 video.srcObject = stream;
                 video.style.display = 'block';
                 document.getElementById('setup').style.display = 'none';
-                video.play().catch(() => { document.getElementById('playOverlay').style.display = 'flex'; });
             });
         });
-        peer.on('error', (err) => { status.innerText = "エラー: " + err.type; });
+
+        peer.on('error', (err) => {
+            status.innerText = "接続エラー: " + err.type;
+            console.error(err);
+        });
     }
-    function forceStart() { video.play(); document.getElementById('playOverlay').style.display = 'none'; }
 </script>
 </body>
 </html>
