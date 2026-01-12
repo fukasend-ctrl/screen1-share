@@ -3,24 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nexus Receiver - Relay</title>
+    <title>Nexus Receiver - Global</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
     <style>
         body { background: #000; color: #00ff41; font-family: monospace; text-align: center; padding: 20px; }
-        input { width: 100%; padding: 15px; background: #111; color: #00ff41; border: 1px solid #00ff41; margin: 10px 0; border-radius: 8px; box-sizing: border-box; }
+        .box { max-width: 500px; margin: auto; border: 1px solid #00ff41; padding: 20px; border-radius: 12px; }
+        input { width: 100%; padding: 15px; background: #111; color: #00ff41; border: 1px solid #00ff41; border-radius: 8px; box-sizing: border-box; margin-bottom: 20px; }
         button { width: 100%; padding: 15px; background: #00ff41; color: #000; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; }
-        video { width: 100%; max-width: 600px; margin-top: 20px; display: none; }
-        #status { font-size: 12px; color: #fff; margin-top: 10px; }
+        video { width: 100%; margin-top: 20px; border-radius: 12px; display: none; background: #222; }
+        #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; align-items: center; justify-content: center; z-index: 100; cursor: pointer; }
     </style>
 </head>
 <body>
-    <h3>[ 視聴：中継リレーモード ]</h3>
-    <div id="setup">
+    <div class="box" id="setup">
+        <h2>GLOBAL RECEIVER</h2>
         <input type="text" id="rid" placeholder="長いIDを貼り付けてください">
-        <button onclick="connect()">接続を開始</button>
-        <p id="status"></p>
+        <button onclick="connect()">視聴を開始</button>
+        <p id="status" style="font-size: 12px; margin-top: 15px;">待機中</p>
     </div>
+
     <video id="v" playsinline autoplay controls></video>
+
+    <div id="overlay" onclick="forceStart()">
+        <button style="width: auto; padding: 20px 40px;">▶ 映像を表示する</button>
+    </div>
 
 <script>
     const video = document.getElementById('v');
@@ -31,40 +37,44 @@
         const id = document.getElementById('rid').value.trim();
         if (!id) return alert("IDを入力してください");
 
-        status.innerText = "中継サーバー経由で接続を確立中...";
+        status.innerText = "グローバル中継サーバー経由で接続中...";
+        if (peer) peer.destroy();
 
-        // 視聴側も中継サーバー設定を合わせる
         peer = new Peer({
             config: {
-                iceServers: [
-                    {
-                        urls: [
-                            "turn:openrelay.metered.ca:80",
-                            "turn:openrelay.metered.ca:443",
-                            "turn:openrelay.metered.ca:443?transport=tcp"
-                        ],
-                        username: "openrelayproject",
-                        credential: "openrelayproject"
-                    }
-                ],
+                iceServers: [{
+                    urls: ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443"],
+                    username: "openrelayproject", credential: "openrelayproject"
+                }],
                 iceTransportPolicy: 'relay'
             }
         });
 
         peer.on('open', () => {
-            const call = peer.call(id, new MediaStream());
+            const call = peer.call(id, new MediaStream(), {
+                sdpTransform: sdp => sdp.replace(/a=candidate:.+?\.local.+?\r\n/g, '')
+            });
+
             call.on('stream', (stream) => {
-                status.innerText = "受信成功";
+                status.innerText = "受信成功！";
                 video.srcObject = stream;
                 video.style.display = 'block';
                 document.getElementById('setup').style.display = 'none';
+                video.play().catch(() => {
+                    document.getElementById('overlay').style.display = 'flex';
+                });
             });
         });
 
         peer.on('error', (err) => {
-            status.innerText = "接続エラー: " + err.type;
+            status.innerText = "エラー: " + err.type;
             console.error(err);
         });
+    }
+
+    function forceStart() {
+        video.play();
+        document.getElementById('overlay').style.display = 'none';
     }
 </script>
 </body>
