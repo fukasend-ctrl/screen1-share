@@ -6,26 +6,28 @@
     <title>Nexus Viewer v6</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { font-family: monospace; background: #050505; color: #00ff41; margin: 0; padding: 20px; text-align: center; }
-        .container { max-width: 500px; margin: auto; border: 1px solid #00ff41; padding: 20px; border-radius: 10px; }
-        input { width: 100%; padding: 15px; background: #000; color: #00ff41; border: 1px solid #00ff41; font-size: 2rem; text-align: center; margin: 20px 0; outline: none; }
-        button { width: 100%; padding: 15px; background: #00ff41; color: #000; font-weight: bold; border: none; cursor: pointer; font-size: 1.2rem; }
-        video { width: 100%; margin-top: 20px; border: 1px solid #333; background: #000; }
-        #status { margin-bottom: 10px; font-size: 0.8rem; }
-        #playOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 100; }
+        :root { --p: #00ff41; --bg: #050505; }
+        body { font-family: 'Segoe UI', monospace; background: var(--bg); color: var(--p); margin: 0; padding: 20px; text-align: center; }
+        .container { max-width: 600px; margin: auto; border: 1px solid var(--p); padding: 30px; border-radius: 12px; box-shadow: 0 0 30px rgba(0,255,65,0.1); }
+        input { width: 100%; padding: 15px; background: #000; color: var(--p); border: 1px solid var(--p); font-size: 2.5rem; text-align: center; margin: 20px 0; border-radius: 8px; outline: none; }
+        button { width: 100%; padding: 18px; background: var(--p); color: #000; font-weight: bold; border: none; cursor: pointer; font-size: 1.2rem; border-radius: 8px; }
+        video { width: 100%; margin-top: 25px; border: 1px solid #333; background: #000; border-radius: 10px; }
+        #status { margin-bottom: 10px; font-size: 0.9rem; color: #fff; }
+        #playOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 100; flex-direction: column; }
     </style>
 </head>
 <body>
     <div class="container">
         <h2>[ RECEIVE MODE ]</h2>
-        <div id="status">ルームIDを入力してください</div>
+        <div id="status">5桁のルームIDを入力してください</div>
         <input type="number" id="roomId" placeholder="00000" oninput="if(value.length>5)value=value.slice(0,5)">
-        <button onclick="startView()">視聴を開始</button>
-        <video id="v" autoplay playsinline webkit-playsinline></video>
+        <button onclick="startView()">視聴を開始する</button>
+        <video id="v" autoplay playsinline webkit-playsinline controls></video>
     </div>
 
     <div id="playOverlay" onclick="forcePlay()">
-        <button style="width:auto;">▶ 映像を再生する</button>
+        <button style="width:auto; padding: 20px 40px;">▶ 映像を表示する</button>
+        <p style="color:white; margin-top:15px;">接続されました。ボタンを押して開始してください。</p>
     </div>
 
 <script>
@@ -37,16 +39,19 @@
         const id = document.getElementById('roomId').value;
         if (id.length !== 5) return alert("5桁の数字を入力してください");
 
-        status.innerText = "接続中...";
+        status.innerText = "接続を確立中...";
         const peer = new Peer({
             config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] }
         });
 
         peer.on('open', () => {
+            // ホスト（5桁ID）を呼び出す
             const call = peer.call(id, new MediaStream());
             call.on('stream', (stream) => {
-                status.innerText = "受信中";
+                status.innerText = "受信成功！";
                 video.srcObject = stream;
+                
+                // 自動再生が拒否された場合にオーバーレイを出す
                 video.play().catch(() => {
                     overlay.style.display = 'flex';
                 });
@@ -54,7 +59,8 @@
         });
 
         peer.on('error', (err) => {
-            alert("接続に失敗しました。配信が開始されているか確認してください。");
+            alert("接続に失敗しました。配信が開始されているか、IDが正しいか確認してください。");
+            status.innerText = "エラー：再試行してください";
         });
     }
 
