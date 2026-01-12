@@ -2,51 +2,44 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Nexus Receiver v9</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Receiver - Final</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
     <style>
-        body { margin: 0; background: #050505; color: #00ff41; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
-        .container { width: 90%; max-width: 400px; text-align: center; border: 1px solid #00ff41; padding: 30px; border-radius: 15px; background: rgba(0,255,65,0.05); }
-        input { width: 100%; padding: 15px; font-size: 2.5rem; background: #000; border: 1px solid #00ff41; color: #00ff41; text-align: center; border-radius: 10px; outline: none; box-sizing: border-box; }
-        button { width: 100%; margin-top: 25px; padding: 20px; background: #00ff41; color: #000; border: none; font-weight: bold; font-size: 1.2rem; border-radius: 10px; cursor: pointer; }
-        #status { color: #fff; font-size: 13px; margin-top: 15px; }
-        video { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: contain; background: #000; display: none; }
-        #playOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
+        body { background: #000; color: #00ff41; font-family: monospace; text-align: center; padding: 20px; }
+        input { width: 100%; padding: 15px; background: #111; color: #00ff41; border: 1px solid #00ff41; margin: 10px 0; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; background: #00ff41; color: #000; font-weight: bold; border: none; cursor: pointer; }
+        video { width: 100%; max-width: 600px; margin-top: 20px; display: none; }
+        #playOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; }
     </style>
 </head>
 <body>
-    <div class="container" id="setup">
-        <h2>RECEIVER v9</h2>
-        <div id="status">5桁のIDを入力</div>
-        <input type="number" id="rid" placeholder="00000">
-        <button onclick="connect()">CONNECT</button>
+    <h3>[ 視聴：安定版 ]</h3>
+    <div id="setup">
+        <p>PCアプリに表示されたIDを貼り付けてください</p>
+        <input type="text" id="rid" placeholder="長いIDをここに貼り付け">
+        <button onclick="connect()">接続を開始</button>
+        <p id="status" style="font-size: 12px; color: #aaa;"></p>
     </div>
 
-    <video id="v" playsinline webkit-playsinline autoplay></video>
-    <div id="playOverlay" onclick="forceStart()">
-        <button style="width:auto; padding: 20px 40px;">▶ 映像を表示</button>
-    </div>
+    <video id="v" playsinline autoplay controls></video>
+    <div id="playOverlay" onclick="forceStart()"><button>▶ 映像を表示</button></div>
 
 <script>
     const video = document.getElementById('v');
     const status = document.getElementById('status');
-    const overlay = document.getElementById('playOverlay');
     let peer = null;
 
     function connect() {
-        const id = document.getElementById('rid').value;
-        if (id.length !== 5) return alert("5桁のIDを入力してください");
+        const id = document.getElementById('rid').value.trim();
+        if (!id) return alert("IDを入力してください");
 
         if (peer) peer.destroy();
         status.innerText = "接続中...";
 
-        peer = new Peer({ 
-            config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }], iceTransportPolicy: 'all' } 
-        });
+        peer = new Peer({ config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] } });
 
         peer.on('open', () => {
-            // 住所解決エラーを回避するための特殊な接続
             const call = peer.call(id, new MediaStream(), {
                 sdpTransform: sdp => sdp.replace(/a=candidate:.+?\.local.+?\r\n/g, '')
             });
@@ -55,12 +48,12 @@
                 video.srcObject = stream;
                 video.style.display = 'block';
                 document.getElementById('setup').style.display = 'none';
-                video.play().catch(() => { overlay.style.display = 'flex'; });
+                video.play().catch(() => { document.getElementById('playOverlay').style.display = 'flex'; });
             });
         });
+        peer.on('error', (err) => { status.innerText = "エラー: " + err.type; });
     }
-
-    function forceStart() { video.play(); overlay.style.display = 'none'; }
+    function forceStart() { video.play(); document.getElementById('playOverlay').style.display = 'none'; }
 </script>
 </body>
 </html>
