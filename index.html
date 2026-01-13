@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NEXUS RECEIVER | PRO</title>
+    <title>NEXUS RECEIVER PRO</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
         #stream-img { width: 100vw; height: 100vh; object-fit: contain; display: block; }
-        #status { position: fixed; top: 15px; left: 15px; color: #00ff41; font-size: 11px; z-index: 100; background: rgba(0,0,0,0.6); padding: 5px 10px; border-radius: 4px; pointer-events: none; border-left: 3px solid #00ff41; }
-        
+        #status { position: fixed; top: 15px; left: 15px; color: #00ff41; font-size: 11px; z-index: 100; background: rgba(0,0,0,0.6); padding: 5px 10px; border-radius: 4px; pointer-events: none; border-left: 3px solid #00ff41; font-family: monospace; }
         #overlay { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.85); color: #00ff41; cursor: pointer; flex-direction: column; transition: 0.5s; text-align: center; }
         .pulse { animation: pulse 2s infinite; font-weight: bold; letter-spacing: 2px; }
         @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
@@ -17,67 +16,44 @@
     </style>
 </head>
 <body>
-
     <div id="status">SIGNAL STANDBY</div>
     <div id="overlay">
-        <div class="pulse">TAP TO START STREAM</div>
-        <div style="font-size: 10px; margin-top: 10px; color: #666;">High-Quality 1080P/30FPS</div>
+        <div class="pulse">TAP TO START SECURE STREAM</div>
+        <div style="font-size: 10px; margin-top: 10px; color: #666;">High-Quality 1080P/30FPS Mode</div>
     </div>
     <img id="stream-img">
-
 <script>
-    // ⚠️ あなたの ngrok URL に書き換えてください
     const NGROK_URL = 'https://excusive-ivelisse-creepiest.ngrok-free.dev'; 
-    
     const NexusReceiver = {
         socket: null,
         img: document.getElementById('stream-img'),
         status: document.getElementById('status'),
         overlay: document.getElementById('overlay'),
-
         init() {
-            // サーバーに接続
             this.socket = io(NGROK_URL, { 
                 transports: ['websocket'], 
                 reconnection: true,
                 extraHeaders: { "ngrok-skip-browser-warning": "true" }
             });
-
-            this.socket.on('connect', () => {
-                this.status.innerText = "● LIVE (CONNECTED)";
-            });
-
-            // 配信側から画像データが届いたら表示を更新
+            this.socket.on('connect', () => { this.status.innerText = "● LIVE (CONNECTED)"; });
             this.socket.on('view-data', (data) => {
                 this.img.src = data;
                 this.status.innerText = "● LIVE (RECEIVING)";
             });
-
-            this.socket.on('connect_error', () => {
-                this.status.innerText = "⚠️ SIGNAL LOST";
-            });
-
+            this.socket.on('connect_error', () => { this.status.innerText = "⚠️ SIGNAL LOST"; });
             this.overlay.addEventListener('click', () => this.activate());
         },
-
         activate() {
             this.overlay.classList.add('hidden');
-            
-            // ngrokの警告回避（初回のみ別窓で開く）
             window.open(NGROK_URL, '_blank');
-
-            // 全画面化
             const el = document.documentElement;
             if (el.requestFullscreen) el.requestFullscreen();
             else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-
-            // 横画面固定
             if (screen.orientation && screen.orientation.lock) {
                 screen.orientation.lock('landscape').catch(() => {});
             }
         }
     };
-
     window.onload = () => NexusReceiver.init();
 </script>
 </body>
