@@ -9,13 +9,14 @@
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
         #stream-img { width: 100vw; height: 100vh; object-fit: contain; display: block; }
         #status { position: fixed; top: 15px; left: 15px; color: #00ff41; font-size: 11px; z-index: 100; background: rgba(0,0,0,0.6); padding: 5px 10px; border-radius: 4px; pointer-events: none; border-left: 3px solid #00ff41; }
-        /* ブラウザ制限回避用レイヤー：
-           画面全体を覆い、一度クリックさせることで全画面化と再生許可を同時に得る 
-        */
+        
         #overlay { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.85); color: #00ff41; cursor: pointer; flex-direction: column; transition: 0.5s; }
-        .pulse { animation: pulse 2s infinite; font-weight: bold; letter-spacing: 2px; }
+        .pulse { animation: pulse 2s infinite; font-weight: bold; letter-spacing: 2px; text-align: center; }
         @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
         .hidden { opacity: 0; pointer-events: none; }
+        
+        /* 警告回避用の案内 */
+        #ngrok-link { color: #888; font-size: 10px; margin-top: 20px; text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -24,11 +25,13 @@
     <div id="overlay">
         <div class="pulse">TAP TO START SECURE STREAM</div>
         <div style="font-size: 10px; margin-top: 10px; color: #666;">High-Quality 1080P/30FPS Mode</div>
+        <div id="ngrok-link">接続できない場合はここをタップ</div>
     </div>
     <img id="stream-img">
 
 <script>
-    const NGROK_URL = 'https://excusive-ivelisse-creepiest.ngrok-free.dev'; // ⚠️URLを確認
+    // ⚠️ あなたの ngrok URL に書き換えてください
+    const NGROK_URL = 'https://excusive-ivelisse-creepiest.ngrok-free.dev'; 
     
     const NexusReceiver = {
         socket: null,
@@ -37,42 +40,49 @@
         overlay: document.getElementById('overlay'),
 
         init() {
+            // ngrokの警告回避のため headers を追加した設定
             this.socket = io(NGROK_URL, { 
                 transports: ['websocket'], 
                 reconnection: true,
-                reconnectionDelay: 1000
+                reconnectionDelay: 1000,
+                extraHeaders: {
+                    "ngrok-skip-browser-warning": "69420"
+                }
             });
 
             this.socket.on('connect', () => {
                 this.status.innerText = "● LIVE (CONNECTED)";
+                this.status.style.color = "#00ff41";
             });
 
             this.socket.on('view-data', (data) => {
                 this.img.src = data;
+                this.status.innerText = "● LIVE (RECEIVING)";
             });
 
-            this.socket.on('connect_error', () => {
-                this.status.innerText = "⚠️ SIGNAL LOST";
+            this.socket.on('connect_error', (err) => {
+                this.status.innerText = "⚠️ SIGNAL LOST / SEARCHING...";
+                this.status.style.color = "red";
+                console.log("Connect Error:", err);
             });
 
-            // バックグラウンド・スリープ復帰対策
             document.addEventListener('visibilitychange', () => {
                 if (document.visibilityState === 'visible') this.socket.connect();
             });
 
-            // オーバーレイクリックで全権限取得
             this.overlay.addEventListener('click', () => this.activate());
         },
 
         activate() {
             this.overlay.classList.add('hidden');
             
-            // 全画面化（iOS/Android両対応）
+            // ngrokの警告ページを一度直接開かせることでクッキーを焼く（初回のみ）
+            window.open(NGROK_URL, '_blank');
+
             const el = document.documentElement;
             if (el.requestFullscreen) el.requestFullscreen();
             else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
 
-            // 横画面固定（可能なブラウザのみ）
             if (screen.orientation && screen.orientation.lock) {
                 screen.orientation.lock('landscape').catch(() => {});
             }
