@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Nexus Receiver</title>
+    <title>Nexus Receiver - Auto</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; position: fixed; }
         #stream-img { width: 100vw; height: 100vh; object-fit: contain; display: block; }
-        #status { position: fixed; top: 10px; left: 10px; color: #00ff41; font-family: monospace; font-size: 10px; z-index: 100; background: rgba(0,0,0,0.5); padding: 4px; }
+        #status { position: fixed; top: 10px; left: 10px; color: #00ff41; font-family: monospace; font-size: 10px; z-index: 100; background: rgba(0,0,0,0.5); padding: 4px; border-radius: 3px; }
     </style>
 </head>
 <body>
-    <div id="status">CONNECTING...</div>
+    <div id="status">INIT...</div>
     <img id="stream-img">
 
 <script>
@@ -20,38 +20,32 @@
     const status = document.getElementById('status');
     const NGROK_URL = 'https://excusive-ivelisse-creepiest.ngrok-free.dev';
 
-    // バックグラウンドでも通信を維持しやすい設定
     const socket = io(NGROK_URL, { 
         transports: ['websocket'],
         reconnection: true,
-        reconnectionDelay: 500,
-        reconnectionAttempts: Infinity
+        reconnectionDelay: 500
     });
 
     socket.on('connect', () => { status.innerText = "● LIVE"; });
     socket.on('view-data', (data) => { img.src = data; });
 
-    // 画面を開いた瞬間に自動で全画面を試行（ブラウザ制限により失敗する場合もありますが、接続は自動です）
-    window.onload = () => {
-        status.innerText = "● AUTO-CONNECTING...";
-        // 自動で横画面固定を試行
+    // ユーザー操作なしで全画面・横向きを試行（ページをクリックした瞬間に発動する予備策含む）
+    document.body.addEventListener('click', () => {
+        if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen();
+        }
         if (screen.orientation && screen.orientation.lock) {
             screen.orientation.lock('landscape').catch(() => {});
         }
-    };
+    }, { once: true });
 
-    // スマホのバックグラウンド・スリープ復帰対策（最強設定）
-    let checkInterval = setInterval(() => {
-        if (!socket.connected) {
-            status.innerText = "RECONNECTING...";
-            socket.connect();
-        }
-    }, 2000);
+    // 強力な自動再接続ロジック（バックグラウンド対策）
+    setInterval(() => {
+        if (!socket.connected) socket.connect();
+    }, 3000);
 
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') {
-            socket.connect();
-        }
+        if (document.visibilityState === 'visible') socket.connect();
     });
 </script>
 </body>
