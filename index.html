@@ -3,100 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Nexus Receiver Ultra</title>
+    <title>Receiver Pro</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: #000; color: #00ff41; font-family: 'Consolas', monospace; overflow: hidden; width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
-        
-        /* 高画質化のための画像レンダリング設定 */
-        #stream-img { 
-            width: 100%; height: 100%; object-fit: contain; 
-            image-rendering: -webkit-optimize-contrast; /* くっきり表示 */
-            display: block;
-        }
-
-        #status { 
-            position: fixed; top: 0; left: 0; width: 100%; font-size: 10px; 
-            background: rgba(0,0,0,0.8); padding: 4px 10px; z-index: 100; 
-            border-bottom: 1px solid #333; pointer-events: none;
-        }
-
-        /* 全画面ボタン */
-        #fullscreen-btn {
-            position: fixed; bottom: 20px; right: 20px; z-index: 200;
-            background: rgba(0, 255, 65, 0.2); color: #00ff41;
-            border: 1px solid #00ff41; padding: 12px 20px; border-radius: 30px;
-            font-size: 14px; font-weight: bold; backdrop-filter: blur(5px);
-            cursor: pointer;
-        }
+        body { background: #000; margin: 0; overflow: hidden; width: 100vw; height: 100vh; position: fixed; }
+        #stream-img { width: 100%; height: 100%; object-fit: contain; }
+        #status { position: fixed; top: 0; color: #00ff41; background: rgba(0,0,0,0.6); font-size: 10px; padding: 5px; z-index: 10; }
+        #fs-btn { position: fixed; bottom: 20px; right: 20px; padding: 15px; background: #00ff41; border: none; border-radius: 50%; font-weight: bold; cursor: pointer; z-index: 100; box-shadow: 0 0 15px #00ff41; }
     </style>
 </head>
 <body>
-    <div id="status">システム起動中...</div>
-    
-    <img id="stream-img" alt="Stream">
+    <div id="status">待機中...</div>
+    <img id="stream-img">
+    <button id="fs-btn">全画面</button>
 
-    <button id="fullscreen-btn">全画面 / 横固定</button>
+<script>
+    const img = document.getElementById('stream-img');
+    const status = document.getElementById('status');
+    const NGROK_URL = 'https://excusive-ivelisse-creepiest.ngrok-free.dev';
 
-    <script>
-        const img = document.getElementById('stream-img');
-        const status = document.getElementById('status');
-        const btn = document.getElementById('fullscreen-btn');
+    // 接続設定：バックグラウンド復帰を最速にする
+    const socket = io(NGROK_URL, {
+        transports: ['websocket'],
+        reconnectionDelay: 500,
+        timeout: 5000
+    });
 
-        // ★ ngrok URL
-        const NGROK_URL = 'https://excusive-ivelisse-creepiest.ngrok-free.dev'; 
+    socket.on('connect', () => { status.innerText = "● LIVE"; });
+    socket.on('view-data', (data) => { img.src = data; });
 
-        // バックグラウンド維持と高画質パケットのための設定
-        const socket = io(NGROK_URL, {
-            transports: ['websocket'],
-            reconnection: true,
-            reconnectionAttempts: Infinity, // 無限に再接続を試みる
-            reconnectionDelay: 1000,
-            timeout: 20000
-        });
+    // 全画面＋横固定
+    document.getElementById('fs-btn').addEventListener('click', () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen();
+            screen.orientation.lock('landscape').catch(() => {});
+        } else {
+            document.exitFullscreen();
+        }
+    });
 
-        socket.on('connect', () => {
-            status.innerText = "● 接続中 (" + socket.id.substring(0,5) + ")";
-            status.style.color = "#00ff41";
-        });
-
-        socket.on('view-data', (data) => {
-            img.src = data; 
-            status.innerText = "● LIVE (" + (data.length / 1024).toFixed(0) + "KB)";
-            status.style.color = "#ff4141";
-        });
-
-        socket.on('connect_error', () => {
-            status.innerText = "再接続を試みています...";
-            status.style.color = "orange";
-        });
-
-        // 全画面 ＆ 横向きロック
-        btn.addEventListener('click', async () => {
-            try {
-                if (!document.fullscreenElement) {
-                    await document.documentElement.requestFullscreen();
-                    // スマホなら画面を横に固定（一部ブラウザのみ対応）
-                    if (screen.orientation && screen.orientation.lock) {
-                        await screen.orientation.lock('landscape').catch(e => console.log("Orientation lock not supported"));
-                    }
-                    btn.innerText = "全画面解除";
-                } else {
-                    document.exitFullscreen();
-                    btn.innerText = "全画面 / 横固定";
-                }
-            } catch (err) {
-                console.log(err);
-            }
-        });
-
-        // バックグラウンドから戻った時のリフレッシュ処理
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') {
-                if (!socket.connected) socket.connect();
-            }
-        });
-    </script>
+    // バックグラウンド（スリープ）から戻った時に即再接続
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            socket.connect();
+        }
+    });
+</script>
 </body>
 </html>
