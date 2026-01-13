@@ -3,59 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Nexus Receiver Ultra 30</title>
+    <title>1080p Receiver</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { background: #000; margin: 0; overflow: hidden; width: 100vw; height: 100vh; position: fixed; display: flex; align-items: center; justify-content: center; }
-        #stream-img { width: 100%; height: 100%; object-fit: contain; }
-        #status { position: fixed; top: 0; left: 0; color: #00ff41; background: rgba(0,0,0,0.7); font-size: 11px; padding: 5px 10px; z-index: 10; border-bottom-right-radius: 5px; }
-        #fs-btn { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: rgba(0,255,65,0.8); color: #000; border: none; border-radius: 50%; font-weight: bold; cursor: pointer; z-index: 100; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; position: fixed; }
+        /* 1080pの比率を維持して画面いっぱいに表示 */
+        #stream-img { width: 100vw; height: 100vh; object-fit: contain; }
+        /* スマホ用全画面ボタン（目立つように中央下に配置） */
+        #fs-btn { 
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            padding: 15px 30px; background: #00ff41; color: #000; 
+            border: none; border-radius: 50px; font-weight: bold; z-index: 1000;
+        }
     </style>
 </head>
 <body>
-    <div id="status">CONNECTING...</div>
     <img id="stream-img">
-    <button id="fs-btn">全画面</button>
+    <button id="fs-btn">スマホ全画面起動</button>
 
 <script>
     const img = document.getElementById('stream-img');
-    const status = document.getElementById('status');
     const NGROK_URL = 'https://excusive-ivelisse-creepiest.ngrok-free.dev';
 
-    const socket = io(NGROK_URL, {
-        transports: ['websocket'],
-        reconnection: true,
-        reconnectionDelay: 500
-    });
+    const socket = io(NGROK_URL, { transports: ['websocket'] });
+    socket.on('view-data', (data) => { img.src = data; });
 
-    socket.on('connect', () => { status.innerText = "● LIVE (30FPS)"; });
+    const btn = document.getElementById('fs-btn');
+    btn.addEventListener('click', () => {
+        const docElm = document.documentElement;
+        // iOS Safari / Android Chrome 両対応の全画面命令
+        if (docElm.requestFullscreen) { docElm.requestFullscreen(); }
+        else if (docElm.webkitRequestFullscreen) { docElm.webkitRequestFullscreen(); }
+        else if (docElm.mozRequestFullScreen) { docElm.mozRequestFullScreen(); }
+        else if (docElm.msRequestFullscreen) { docElm.msRequestFullscreen(); }
 
-    // 映像受信
-    socket.on('view-data', (data) => {
-        img.src = data;
-    });
-
-    // 全画面切り替え
-    const fsBtn = document.getElementById('fs-btn');
-    fsBtn.addEventListener('click', () => {
-        if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().then(() => {
-                if (screen.orientation && screen.orientation.lock) {
-                    screen.orientation.lock('landscape').catch(() => {});
-                }
-            });
-            fsBtn.innerText = "解除";
-        } else {
-            document.exitFullscreen();
-            fsBtn.innerText = "全画面";
+        // 画面を横に固定
+        if (screen.orientation && screen.orientation.lock) {
+            screen.orientation.lock('landscape').catch(() => {});
         }
+        btn.style.display = 'none'; // 全画面後はボタンを消す
     });
 
-    // バックグラウンドから戻った際の自動復旧
+    // スリープ復帰対策
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') {
-            socket.connect();
-        }
+        if (document.visibilityState === 'visible') { socket.connect(); }
     });
 </script>
 </body>
