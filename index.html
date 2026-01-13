@@ -3,51 +3,95 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>1080p Receiver</title>
+    <title>NEXUS RECEIVER WebP</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; position: fixed; }
-        /* 1080pの比率を維持して画面いっぱいに表示 */
-        #stream-img { width: 100vw; height: 100vh; object-fit: contain; }
-        /* スマホ用全画面ボタン（目立つように中央下に配置） */
-        #fs-btn { 
-            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
-            padding: 15px 30px; background: #00ff41; color: #000; 
-            border: none; border-radius: 50px; font-weight: bold; z-index: 1000;
-        }
+        body { background: #000; color: #00ff41; font-family: sans-serif; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        #v-container { position: relative; width: 100%; max-width: 500px; line-height: 0; border: 1px solid #333; border-radius: 15px; overflow: hidden; background: #000; box-shadow: 0 0 30px rgba(0,255,65,0.2); }
+        video { width: 100%; aspect-ratio: 16/9; }
+        .fs-btn { position: absolute; bottom: 15px; right: 15px; background: #00ff41; color: #000; border: none; padding: 10px 15px; border-radius: 8px; font-weight: bold; font-size: 12px; z-index: 10; opacity: 0.8; }
+        .ui-box { width: 100%; max-width: 500px; margin-top: 20px; }
+        textarea { width: 100%; height: 90px; background: #111; color: #00ff41; border: 1px solid #333; border-radius: 10px; padding: 12px; font-size: 11px; box-sizing: border-box; margin-bottom: 10px; outline: none; }
+        button { width: 100%; padding: 16px; background: transparent; color: #00ff41; border: 1px solid #00ff41; border-radius: 10px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:active { background: #00ff41; color: #000; }
+        #status { font-size: 11px; margin-bottom: 10px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
     </style>
 </head>
 <body>
-    <img id="stream-img">
-    <button id="fs-btn">スマホ全画面起動</button>
+
+<div id="status">LINK STATUS: STANDBY</div>
+
+<div id="v-container">
+    <video id="v" autoplay playsinline muted></video>
+    <button class="fs-btn" id="fs-btn">FULLSCREEN</button>
+</div>
+
+<div class="ui-box">
+    <textarea id="remote-sdp" placeholder="1. PCのコードをここに貼り付け"></textarea>
+    <button onclick="startGuest()">視聴コード生成</button>
+
+    <div id="guest-box" style="display:none; margin-top:15px;">
+        <textarea id="local-sdp" readonly placeholder="生成されたコード"></textarea>
+        <button onclick="copyCode()" style="background:#00ff41; color:#000;">コピーしてPCに送信</button>
+    </div>
+</div>
 
 <script>
-    const img = document.getElementById('stream-img');
-    const NGROK_URL = 'https://excusive-ivelisse-creepiest.ngrok-free.dev';
+    let pc;
+    const config = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+    const video = document.getElementById('v');
 
-    const socket = io(NGROK_URL, { transports: ['websocket'] });
-    socket.on('view-data', (data) => { img.src = data; });
+    async function startGuest() {
+        const val = document.getElementById('remote-sdp').value.trim();
+        if(!val) return;
 
-    const btn = document.getElementById('fs-btn');
-    btn.addEventListener('click', () => {
-        const docElm = document.documentElement;
-        // iOS Safari / Android Chrome 両対応の全画面命令
-        if (docElm.requestFullscreen) { docElm.requestFullscreen(); }
-        else if (docElm.webkitRequestFullscreen) { docElm.webkitRequestFullscreen(); }
-        else if (docElm.mozRequestFullScreen) { docElm.mozRequestFullScreen(); }
-        else if (docElm.msRequestFullscreen) { docElm.msRequestFullscreen(); }
+        pc = new RTCPeerConnection(config);
+        
+        // 映像が途切れないための強制再生
+        pc.ontrack = e => {
+            if (video.srcObject !== e.streams[0]) {
+                video.srcObject = e.streams[0];
+                video.play().catch(() => {
+                    // 自動再生に失敗した場合はクリックを促す
+                    document.getElementById('status').innerText = "TAP VIDEO TO START";
+                });
+                document.getElementById('status').innerText = "LINK ESTABLISHED";
+            }
+        };
 
-        // 画面を横に固定
-        if (screen.orientation && screen.orientation.lock) {
-            screen.orientation.lock('landscape').catch(() => {});
+        const sdpText = decodeURIComponent(escape(atob(val)));
+        await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: sdpText }));
+
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        pc.onicecandidate = e => {
+            if (!e.candidate) {
+                document.getElementById('local-sdp').value = btoa(unescape(encodeURIComponent(pc.localDescription.sdp)));
+                document.getElementById('guest-box').style.display = 'block';
+            }
+        };
+    }
+
+    // スマホ全画面対応
+    document.getElementById('fs-btn').addEventListener('click', () => {
+        const container = document.getElementById('v-container');
+        if (!document.fullscreenElement) {
+            if (container.requestFullscreen) container.requestFullscreen();
+            else if (container.webkitRequestFullscreen) container.webkitRequestFullscreen();
+            
+            if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock('landscape').catch(() => {});
+            }
+        } else {
+            document.exitFullscreen();
         }
-        btn.style.display = 'none'; // 全画面後はボタンを消す
     });
 
-    // スリープ復帰対策
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') { socket.connect(); }
-    });
+    function copyCode() {
+        document.getElementById('local-sdp').select();
+        document.execCommand('copy');
+    }
 </script>
 </body>
 </html>
