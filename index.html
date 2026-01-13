@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Receiver Pro</title>
+    <title>Nexus Receiver Ultra 30</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { background: #000; margin: 0; overflow: hidden; width: 100vw; height: 100vh; position: fixed; }
+        body { background: #000; margin: 0; overflow: hidden; width: 100vw; height: 100vh; position: fixed; display: flex; align-items: center; justify-content: center; }
         #stream-img { width: 100%; height: 100%; object-fit: contain; }
-        #status { position: fixed; top: 0; color: #00ff41; background: rgba(0,0,0,0.6); font-size: 10px; padding: 5px; z-index: 10; }
-        #fs-btn { position: fixed; bottom: 20px; right: 20px; padding: 15px; background: #00ff41; border: none; border-radius: 50%; font-weight: bold; cursor: pointer; z-index: 100; box-shadow: 0 0 15px #00ff41; }
+        #status { position: fixed; top: 0; left: 0; color: #00ff41; background: rgba(0,0,0,0.7); font-size: 11px; padding: 5px 10px; z-index: 10; border-bottom-right-radius: 5px; }
+        #fs-btn { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: rgba(0,255,65,0.8); color: #000; border: none; border-radius: 50%; font-weight: bold; cursor: pointer; z-index: 100; display: flex; align-items: center; justify-content: center; font-size: 12px; }
     </style>
 </head>
 <body>
-    <div id="status">待機中...</div>
+    <div id="status">CONNECTING...</div>
     <img id="stream-img">
     <button id="fs-btn">全画面</button>
 
@@ -22,27 +22,36 @@
     const status = document.getElementById('status');
     const NGROK_URL = 'https://excusive-ivelisse-creepiest.ngrok-free.dev';
 
-    // 接続設定：バックグラウンド復帰を最速にする
     const socket = io(NGROK_URL, {
         transports: ['websocket'],
-        reconnectionDelay: 500,
-        timeout: 5000
+        reconnection: true,
+        reconnectionDelay: 500
     });
 
-    socket.on('connect', () => { status.innerText = "● LIVE"; });
-    socket.on('view-data', (data) => { img.src = data; });
+    socket.on('connect', () => { status.innerText = "● LIVE (30FPS)"; });
 
-    // 全画面＋横固定
-    document.getElementById('fs-btn').addEventListener('click', () => {
+    // 映像受信
+    socket.on('view-data', (data) => {
+        img.src = data;
+    });
+
+    // 全画面切り替え
+    const fsBtn = document.getElementById('fs-btn');
+    fsBtn.addEventListener('click', () => {
         if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen();
-            screen.orientation.lock('landscape').catch(() => {});
+            document.documentElement.requestFullscreen().then(() => {
+                if (screen.orientation && screen.orientation.lock) {
+                    screen.orientation.lock('landscape').catch(() => {});
+                }
+            });
+            fsBtn.innerText = "解除";
         } else {
             document.exitFullscreen();
+            fsBtn.innerText = "全画面";
         }
     });
 
-    // バックグラウンド（スリープ）から戻った時に即再接続
+    // バックグラウンドから戻った際の自動復旧
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
             socket.connect();
