@@ -7,44 +7,86 @@
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; position: fixed; }
+        /* 映像を画面いっぱいに表示 */
         #stream-img { width: 100vw; height: 100vh; object-fit: contain; display: block; }
-        #status { position: fixed; top: 10px; left: 10px; color: #00ff41; font-family: monospace; font-size: 11px; z-index: 2000; background: rgba(0,0,0,0.6); padding: 5px; }
-        #fs-btn { 
-            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
-            padding: 16px 32px; background: #00ff41; color: #000; 
-            border: none; border-radius: 50px; font-weight: bold; z-index: 1000;
+        
+        /* 接続状態表示（画面左上） */
+        #status { 
+            position: fixed; top: 10px; left: 10px; color: #00ff41; 
+            font-family: 'Consolas', monospace; font-size: 11px; z-index: 2000; 
+            background: rgba(0,0,0,0.6); padding: 6px 10px; border-radius: 4px;
+            border-left: 3px solid #00ff41; pointer-events: none;
         }
+
+        /* 起動ボタン */
+        #fs-btn { 
+            position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%);
+            padding: 18px 36px; background: #00ff41; color: #000; 
+            border: none; border-radius: 50px; font-weight: bold; font-size: 16px;
+            z-index: 1000; box-shadow: 0 0 30px rgba(0,255,65,0.6);
+            cursor: pointer; transition: 0.3s;
+        }
+        #fs-btn:active { transform: translateX(-50%) scale(0.95); background: #00cc33; }
     </style>
 </head>
 <body>
-    <div id="status">SIGNAL STANDBY...</div>
+    <div id="status">CONNECTING TO SYSTEM...</div>
     <img id="stream-img">
-    <button id="fs-btn">スマホ全画面起動</button>
+    <button id="fs-btn">START FULLSCREEN STREAM</button>
 
 <script>
     const img = document.getElementById('stream-img');
     const status = document.getElementById('status');
-    const NGROK_URL = 'https://excusive-ivelisse-creepiest.ngrok-free.dev'; // あなたのURL
+    
+    // 【重要】あなたの ngrok URL をここに入れてください
+    const NGROK_URL = 'https://excusive-ivelisse-creepiest.ngrok-free.dev'; 
 
-    const socket = io(NGROK_URL, { transports: ['websocket'] });
+    const socket = io(NGROK_URL, { 
+        transports: ['websocket'],
+        reconnectionDelay: 1000,
+        timeout: 10000
+    });
 
-    socket.on('connect', () => { status.innerText = "● LIVE (CONNECTED)"; });
-    socket.on('view-data', (data) => { img.src = data; });
+    // 接続成功時
+    socket.on('connect', () => { 
+        status.innerText = "● LIVE (CONNECTED)"; 
+        status.style.color = "#00ff41";
+    });
 
-    document.getElementById('fs-btn').addEventListener('click', () => {
+    // 映像データ受信時
+    socket.on('view-data', (data) => { 
+        img.src = data; 
+    });
+
+    // 接続エラー時
+    socket.on('connect_error', () => {
+        status.innerText = "OFFLINE: SEARCHING FOR SIGNAL...";
+        status.style.color = "#ff4141";
+    });
+
+    // ボタンクリックで全画面起動
+    const btn = document.getElementById('fs-btn');
+    btn.addEventListener('click', () => {
         const docElm = document.documentElement;
-        if (docElm.requestFullscreen) docElm.requestFullscreen();
-        else if (docElm.webkitRequestFullscreen) docElm.webkitRequestFullscreen();
         
+        // 全画面リクエスト（各ブラウザ対応）
+        if (docElm.requestFullscreen) { docElm.requestFullscreen(); }
+        else if (docElm.webkitRequestFullscreen) { docElm.webkitRequestFullscreen(); } // iOS用
+        
+        // 画面の向きを横にロック（スマホのみ有効）
         if (screen.orientation && screen.orientation.lock) {
             screen.orientation.lock('landscape').catch(() => {});
         }
-        document.getElementById('fs-btn').style.display = 'none';
+        
+        // 全画面後はボタンを消す
+        btn.style.display = 'none';
     });
 
-    // スリープからの自動復旧
+    // バックグラウンド・スリープから戻った時のリフレッシュ
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') socket.connect();
+        if (document.visibilityState === 'visible' && !socket.connected) { 
+            socket.connect(); 
+        }
     });
 </script>
 </body>
