@@ -7,18 +7,12 @@
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; position: fixed; }
-        /* 1080pの比率を維持して画面いっぱいに表示 */
         #stream-img { width: 100vw; height: 100vh; object-fit: contain; display: block; }
-        
-        /* ステータス表示 */
-        #status { position: fixed; top: 10px; left: 10px; color: #00ff41; font-family: monospace; font-size: 12px; z-index: 2000; background: rgba(0,0,0,0.5); padding: 5px; pointer-events: none; }
-
-        /* スマホ用全画面ボタン */
+        #status { position: fixed; top: 10px; left: 10px; color: #00ff41; font-family: monospace; font-size: 11px; z-index: 2000; background: rgba(0,0,0,0.6); padding: 5px; }
         #fs-btn { 
             position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
             padding: 16px 32px; background: #00ff41; color: #000; 
             border: none; border-radius: 50px; font-weight: bold; z-index: 1000;
-            box-shadow: 0 0 20px rgba(0,255,65,0.5);
         }
     </style>
 </head>
@@ -30,49 +24,27 @@
 <script>
     const img = document.getElementById('stream-img');
     const status = document.getElementById('status');
-    const NGROK_URL = 'https://excusive-ivelisse-creepiest.ngrok-free.dev';
+    const NGROK_URL = 'https://excusive-ivelisse-creepiest.ngrok-free.dev'; // あなたのURL
 
-    // 接続設定：タイムアウトを短くし、復帰を速める
-    const socket = io(NGROK_URL, { 
-        transports: ['websocket'],
-        reconnectionDelay: 500,
-        timeout: 5000
-    });
+    const socket = io(NGROK_URL, { transports: ['websocket'] });
 
-    socket.on('connect', () => { 
-        status.innerText = "● LIVE (CONNECTED)"; 
-        status.style.color = "#00ff41";
-    });
+    socket.on('connect', () => { status.innerText = "● LIVE (CONNECTED)"; });
+    socket.on('view-data', (data) => { img.src = data; });
 
-    socket.on('view-data', (data) => { 
-        img.src = data; 
-    });
-
-    socket.on('connect_error', () => {
-        status.innerText = "OFFLINE: RECONNECTING...";
-        status.style.color = "red";
-    });
-
-    const btn = document.getElementById('fs-btn');
-    btn.addEventListener('click', () => {
+    document.getElementById('fs-btn').addEventListener('click', () => {
         const docElm = document.documentElement;
-        // iOS Safari / Android Chrome 両対応
-        if (docElm.requestFullscreen) { docElm.requestFullscreen(); }
-        else if (docElm.webkitRequestFullscreen) { docElm.webkitRequestFullscreen(); }
+        if (docElm.requestFullscreen) docElm.requestFullscreen();
+        else if (docElm.webkitRequestFullscreen) docElm.webkitRequestFullscreen();
         
-        // 横画面固定を試行
         if (screen.orientation && screen.orientation.lock) {
             screen.orientation.lock('landscape').catch(() => {});
         }
-        btn.style.display = 'none'; // 全画面後はボタンを消す
+        document.getElementById('fs-btn').style.display = 'none';
     });
 
-    // バックグラウンド・スリープ復帰対策
+    // スリープからの自動復旧
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') { 
-            status.innerText = "RESUMING...";
-            socket.connect(); 
-        }
+        if (document.visibilityState === 'visible') socket.connect();
     });
 </script>
 </body>
